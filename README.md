@@ -86,6 +86,15 @@ Native skill discovery and installation differ by assistant; compatibility with
 all products or model behavior is not guaranteed. The instructions and Markdown
 workflow can be used independently of native skill support.
 
+### Evaluating assistant behavior
+
+The [behavioral evaluation suite](evaluations/sieve/README.md) provides five
+synthetic scenarios, a separate grading rubric and an unrun results template.
+Use the same cases with different assistants to evaluate evidence honesty,
+human-review boundaries, expiry, scheduling and untrusted source instructions.
+Record the model/version, skill revision and full observed response; passing the
+repository's unit tests does not mean a model passed these behavioral cases.
+
 ### Building and releasing the skill
 
 From a local checkout of the desired release commit:
