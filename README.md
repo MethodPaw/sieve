@@ -123,6 +123,17 @@ To check download integrity, run `sha256sum -c sieve-skill-v1.0.0.zip.sha256`
 (or `shasum -a 256 -c sieve-skill-v1.0.0.zip.sha256` on macOS) beside the ZIP.
 A matching checksum checks file integrity, not the trustworthiness of its source.
 
+## RAMI — learning from review
+
+**Review · Act · Measure · Improve** records a finding, a bounded correction,
+a comparable before/after evaluation and a human decision. Failed candidates
+and regressions stay visible. It supports SIEVE without granting release approval.
+
+Start with the [RAMI guide](docs/RAMI.md), copy the
+[register template](templates/rami-register.md), and read the
+[complete synthetic example](examples/rami/reminder-reliability.md). The example
+is fictional and does not claim that behavioral model trials have been run.
+
 ## What is in this repository
 
 ```

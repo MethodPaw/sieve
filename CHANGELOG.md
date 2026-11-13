@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased — RAMI improvement register 0.1.0
+
+- Add RAMI (Review, Act, Measure, Improve) guidance and a reusable improvement register.
+- Add a fully synthetic worked example retaining a failed candidate, regression checks and a scoped human-decision record.
+- Keep RAMI as a manual evidence practice; no automated approval or release gate is introduced.
+
 ## Unreleased — AIKO report protocol 0.1.0
 - Add AIKO (Assess, Inspect, Keep accountable, Observe) as a reporting process under DAHNIN and SIEVE.
 - Add a JSON report template and JSON Schema with named human reviews, check evidence, debt and re-check metadata.
