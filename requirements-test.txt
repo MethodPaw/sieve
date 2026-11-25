@@ -1,0 +1,2 @@
+# Required by the recheck validator and its tests; AIKO remains standard-library only.
+PyYAML==6.0.2

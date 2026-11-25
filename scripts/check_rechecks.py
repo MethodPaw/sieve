@@ -1,120 +1,134 @@
 #!/usr/bin/env python3
-"""SIEVE re-check gate.
+"""Validate a SIEVE recheck schedule and hold expired observations.
 
-E · Expire every verification. The re-check must be able to hold an artefact
-back and must not be able to push it out. This script only ever exits non-zero
-to hold; it never publishes, edits or approves anything.
-
-Usage:
-    python scripts/check_rechecks.py [path/to/recheck-schedule.yml] [--today YYYY-MM-DD]
-                                     [--warn-days N] [--artefact PATH]
-
-Exit codes:
-    0  nothing is due
-    1  at least one re-check is due, overdue, changed, or scheduled after its use date
-    2  the schedule itself is invalid (missing fields, bad dates, duplicate ids)
+Exit codes: 0 = no holds (not release approval); 1 = use held;
+2 = invalid input. Empty schedules require explicit --allow-empty.
 """
-
 from __future__ import annotations
 
 import argparse
 import datetime as dt
+from pathlib import Path
+import re
 import sys
 
 try:
-    import yaml  # PyYAML
-except ImportError:  # pragma: no cover
-    sys.stderr.write("PyYAML is required: pip install pyyaml\n")
+    import yaml
+except ImportError:
+    sys.stderr.write("PyYAML is required: pip install -r requirements-test.txt\n")
     sys.exit(2)
 
 REQUIRED = ("id", "artefact", "claim", "source", "checked_on", "recheck_by", "owner", "status")
 STATUSES = {"open", "confirmed", "changed", "withdrawn"}
 
 
-def as_date(value, field, entry_id, errors):
-    if isinstance(value, dt.date):
+def as_date(value, field, label, errors):
+    if type(value) is dt.date:
         return value
-    try:
-        return dt.date.fromisoformat(str(value))
-    except ValueError:
-        errors.append(f"{entry_id}: {field} is not a YYYY-MM-DD date ({value!r})")
-        return None
+    if isinstance(value, str) and re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}", value):
+        try:
+            return dt.date.fromisoformat(value)
+        except ValueError:
+            pass
+    errors.append(f"{label}: {field} must be a YYYY-MM-DD date")
+    return None
 
 
-def main() -> int:
-    parser = argparse.ArgumentParser(description="Hold artefacts whose verifications have expired.")
-    parser.add_argument("schedule", nargs="?", default="templates/recheck-schedule.yml")
-    parser.add_argument("--today", help="override today's date (YYYY-MM-DD), for testing")
-    parser.add_argument("--warn-days", type=int, default=3, help="warn this many days ahead (default 3)")
-    parser.add_argument("--artefact", help="only check entries for this artefact")
-    args = parser.parse_args()
-
-    today = dt.date.fromisoformat(args.today) if args.today else dt.date.today()
-
-    with open(args.schedule, encoding="utf-8") as fh:
-        data = yaml.safe_load(fh) or {}
-    entries = data.get("rechecks") or []
-
-    errors: list[str] = []
-    seen: set[str] = set()
-    holds: list[str] = []
-    warnings: list[str] = []
-    checked = 0
-
-    for i, entry in enumerate(entries, start=1):
-        entry_id = str(entry.get("id", f"entry {i}"))
-        missing = [f for f in REQUIRED if entry.get(f) in (None, "")]
-        if missing:
-            errors.append(f"{entry_id}: missing {', '.join(missing)}")
+def evaluate(data, today, warn_days=3, artefact=None, allow_empty=False):
+    errors, holds, warnings = [], [], []
+    if not isinstance(data, dict) or not isinstance(data.get("rechecks"), list):
+        return ["schedule must be an object containing a rechecks list"], holds, warnings, 0
+    entries = data["rechecks"]
+    if not entries and not allow_empty:
+        errors.append("empty rechecks list; use --allow-empty only when intentional")
+    seen = set()
+    matched = checked = 0
+    for index, entry in enumerate(entries, 1):
+        label = f"entry {index}"
+        if not isinstance(entry, dict):
+            errors.append(f"{label}: expected object")
             continue
-        if entry_id in seen:
-            errors.append(f"{entry_id}: duplicate id")
-        seen.add(entry_id)
-
-        status = str(entry["status"]).lower()
-        if status not in STATUSES:
-            errors.append(f"{entry_id}: status must be one of {sorted(STATUSES)}")
+        start_errors = len(errors)
+        for field in REQUIRED:
+            if field not in entry:
+                errors.append(f"{label}: missing {field}")
+            elif field not in ("checked_on", "recheck_by") and (
+                    not isinstance(entry[field], str) or not entry[field].strip()):
+                errors.append(f"{label}: {field} must be a nonempty string")
+        ident = entry.get("id")
+        if isinstance(ident, str):
+            ident = ident.strip()
+            if ident in seen:
+                errors.append(f"{label}: duplicate id {ident!r}")
+            seen.add(ident)
+        status = entry.get("status")
+        if not isinstance(status, str) or status not in STATUSES:
+            errors.append(f"{label}: status must be one of {sorted(STATUSES)}")
+        checked_on = as_date(entry.get("checked_on"), "checked_on", label, errors)
+        recheck_by = as_date(entry.get("recheck_by"), "recheck_by", label, errors)
+        use_on = as_date(entry["use_on"], "use_on", label, errors) if "use_on" in entry else None
+        if checked_on and checked_on > today:
+            errors.append(f"{label}: checked_on is in the future")
+        if checked_on and recheck_by and recheck_by <= checked_on:
+            errors.append(f"{label}: recheck_by must be after checked_on")
+        # Validate the whole schedule, including filtered and withdrawn entries.
+        if len(errors) != start_errors:
             continue
-        if args.artefact and entry["artefact"] != args.artefact:
+        if artefact is not None and entry["artefact"] != artefact:
             continue
+        matched += 1
         if status == "withdrawn":
             continue
         checked += 1
-
-        checked_on = as_date(entry["checked_on"], "checked_on", entry_id, errors)
-        recheck_by = as_date(entry["recheck_by"], "recheck_by", entry_id, errors)
-        use_on = as_date(entry["use_on"], "use_on", entry_id, errors) if entry.get("use_on") else None
-        if checked_on is None or recheck_by is None:
-            continue
-
-        label = f"{entry_id} [{entry['artefact']}] owner={entry['owner']}"
-
+        label = f"{ident} [{entry['artefact']}] owner={entry['owner']}"
+        reasons = []
         if status == "changed":
-            holds.append(f"HOLD   {label}: observation no longer true, fix the artefact")
-            continue
+            reasons.append("observation changed; fix the artefact")
         if use_on and recheck_by >= use_on:
-            holds.append(f"HOLD   {label}: re-check {recheck_by} is not before use date {use_on}")
-            continue
+            reasons.append("re-check must be before planned use")
         if recheck_by <= today:
-            days = (today - recheck_by).days
-            when = "due today" if days == 0 else f"overdue by {days} day(s)"
-            holds.append(f"HOLD   {label}: re-check {when}, last checked {checked_on}")
-        elif (recheck_by - today).days <= args.warn_days:
-            warnings.append(f"SOON   {label}: re-check by {recheck_by}")
+            reasons.append("re-check due today or overdue")
+        if reasons:
+            holds.append(f"{label}: {'; '.join(reasons)}")
+        elif (recheck_by - today).days <= warn_days:
+            warnings.append(f"{label}: re-check by {recheck_by}")
+    if artefact is not None and not matched:
+        errors.append(f"no valid entries match artefact {artefact!r}")
+    return errors, holds, warnings, checked
 
-    for line in errors:
-        print(f"INVALID {line}")
-    for line in holds:
-        print(line)
-    for line in warnings:
-        print(line)
 
+def main(argv=None):
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("schedule", nargs="?", default="templates/recheck-schedule.yml")
+    parser.add_argument("--today", help="YYYY-MM-DD override for repeatable tests")
+    parser.add_argument("--warn-days", type=int, default=3)
+    parser.add_argument("--artefact")
+    parser.add_argument("--allow-empty", action="store_true")
+    args = parser.parse_args(argv)
+    if args.warn_days < 0:
+        parser.error("--warn-days must not be negative")
+    date_errors = []
+    today = as_date(args.today, "--today", "arguments", date_errors) if args.today is not None else dt.datetime.now(dt.timezone.utc).date()
+    if date_errors:
+        parser.error(date_errors[0])
+    try:
+        data = yaml.safe_load(Path(args.schedule).read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, ValueError, yaml.YAMLError) as exc:
+        print(f"INVALID schedule: {exc}", file=sys.stderr)
+        return 2
+    errors, holds, warnings, checked = evaluate(data, today, args.warn_days, args.artefact, args.allow_empty)
+    for prefix, reasons in (("INVALID", errors), ("HOLD", holds), ("SOON", warnings)):
+        for reason in reasons:
+            print(f"{prefix} {reason}")
     if errors:
         return 2
     if holds:
-        print(f"\n{len(holds)} of {checked} verification(s) need a re-check before use. Holding.")
+        print(f"{len(holds)} of {checked} active verification(s) held.")
         return 1
-    print(f"{checked} verification(s) in date.")
+    if checked == 0:
+        print("No active verifications scheduled; no evidence was checked.")
+    else:
+        print(f"{checked} active verification(s) in date; not release approval.")
     return 0
 
 

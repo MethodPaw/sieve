@@ -33,6 +33,9 @@ And the corollary that costs the most to learn: **a low acceptance rate is a def
 | 4 | Add a debt register and an artefact header to everything that leaves a loop. | [`templates/debt-register.md`](templates/debt-register.md), [`templates/artefact-header.md`](templates/artefact-header.md) |
 | 5 | Book re-checks for anything observational: copy the schedule template to the repo root as `recheck-schedule.yml`, then make the `sieve-recheck` workflow a required check so it can hold a publish. | [`templates/recheck-schedule.yml`](templates/recheck-schedule.yml), [`scripts/check_rechecks.py`](scripts/check_rechecks.py) |
 
+See [recheck validation](docs/RECHECKS.md) for dependency setup, exit codes,
+empty schedules and retired observations.
+
 Then use the one-page [`CHECKLIST.md`](CHECKLIST.md) on every loop and every week.
 
 ## AIKO — SIEVE Report (experimental)
