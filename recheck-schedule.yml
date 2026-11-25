@@ -1,0 +1,6 @@
+# Operational schedule for this framework repository, not the teaching example.
+# No live observations are tracked yet. Empty is an explicit policy here;
+# it does not assert that every claim in the repository has been verified.
+# Add only real observations with owners, evidence and actual checked dates.
+# See templates/recheck-schedule.yml for field descriptions, not current evidence.
+rechecks: []

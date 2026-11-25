@@ -1,0 +1,28 @@
+name: SIEVE rechecks
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    - cron: '17 7 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  sieve-recheck:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Install recheck dependency
+        run: python3 -m pip install -r requirements-test.txt
+      - name: Check the repository schedule
+        # This framework repo intentionally starts with no tracked observations.
+        # Missing/malformed schedules still fail. See docs/RECHECKS.md.
+        run: python3 scripts/check_rechecks.py recheck-schedule.yml --allow-empty

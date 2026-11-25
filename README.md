@@ -31,7 +31,7 @@ And the corollary that costs the most to learn: **a low acceptance rate is a def
 | 2 | Start every new loop from a context document with a security header. No classification, no loop. | [`templates/context-document.md`](templates/context-document.md) |
 | 3 | Move your guardrails into the repo as hooks and scanners. | `H · Hold` |
 | 4 | Add a debt register and an artefact header to everything that leaves a loop. | [`templates/debt-register.md`](templates/debt-register.md), [`templates/artefact-header.md`](templates/artefact-header.md) |
-| 5 | Book re-checks for anything observational: copy the schedule template to the repo root as `recheck-schedule.yml`, then make the `sieve-recheck` workflow a required check so it can hold a publish. | [`templates/recheck-schedule.yml`](templates/recheck-schedule.yml), [`scripts/check_rechecks.py`](scripts/check_rechecks.py) |
+| 5 | Book re-checks for anything observational in the root `recheck-schedule.yml`, using the template fields. Make `sieve-recheck` a required check and run it again immediately before publishing; see the recheck guide. | [`templates/recheck-schedule.yml`](templates/recheck-schedule.yml), [`scripts/check_rechecks.py`](scripts/check_rechecks.py) |
 
 See [recheck validation](docs/RECHECKS.md) for dependency setup, exit codes,
 empty schedules and retired observations.
